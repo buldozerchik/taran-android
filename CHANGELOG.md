@@ -1,5 +1,17 @@
 # Changelog
 
+## [5.1.0](https://github.com/buldozerchik/taran-android/compare/v5.0.2...v5.1.0) (2026-10-04)
+
+
+### Features
+
+* initial taran Android application ([808bb05](https://github.com/buldozerchik/taran-android/commit/808bb052c2c5fa9ea28a4e964218c47d86943598))
+
+
+### Fixes
+
+* use server AAR v4.1.0 ([f9212a1](https://github.com/buldozerchik/taran-android/commit/f9212a1da3e3c58cc1072cefd5cfbf75ad2bce0f))
+
 ## [5.0.2](https://github.com/buldozerchik/taran-android/compare/v5.0.1...v5.0.2) (2026-09-24)
 
 

@@ -1,0 +1,15 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="400" android:viewportHeight="400">
+  <group android:translateX="-79.88" android:translateY="-55.36">
+    <!-- Top bar of T, kept angular/slanted to match the original icon style -->
+    <path
+        android:pathData="M162.08 143.68L397.68 83V143.68L162.08 204.36Z"
+        android:fillColor="#FFFFFFFF"/>
+    <!-- Vertical stem of T -->
+    <path
+        android:pathData="M254.88 167.80L304.88 154.92V427.72H254.88Z"
+        android:fillColor="#FFFFFFFF"/>
+  </group>
+</vector>

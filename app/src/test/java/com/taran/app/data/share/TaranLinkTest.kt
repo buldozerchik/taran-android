@@ -1,0 +1,172 @@
+package com.taran.app.data.share
+
+import com.taran.app.data.config.KcpProfile
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.util.Base64
+
+class taranLinkTest {
+
+    @Test
+    fun `bond round trip matches Go wire fields`() {
+        val link = taranLink(provider = "vk", peer = "1.2.3.4:56000", mode = "tcp", bond = true)
+        val json = String(Base64.getUrlDecoder().decode(link.encode().removePrefix("taran://")), Charsets.UTF_8)
+        assertEquals("""{"v":1,"provider":"vk","peer":"1.2.3.4:56000","mode":"tcp","bond":true}""", json)
+        assertEquals(link, taranLink.parse(link.encode()).getOrThrow())
+        assertFalse(taranLink.parse(goldenMinimal).getOrThrow().bond)
+    }
+
+    /** Ссылка из docs/uri.md Go-репо: {"v":1,"provider":"vk","peer":"1.2.3.4:56000"}. */
+    private val goldenMinimal = "taran://eyJ2IjoxLCJwcm92aWRlciI6InZrIiwicGVlciI6IjEuMi4zLjQ6NTYwMDAifQ"
+
+    private val wgConf = """
+        [Interface]
+        PrivateKey = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa=
+        Address = 10.13.13.3/32
+        DNS = 1.1.1.1
+
+        [Peer]
+        PublicKey = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb=
+        AllowedIPs = 0.0.0.0/0
+        Endpoint = 127.0.0.1:9000
+        PersistentKeepalive = 25
+    """.trimIndent()
+
+    @Test
+    fun `golden minimal - parse and re-encode byte for byte`() {
+        val link = taranLink.parse(goldenMinimal).getOrThrow()
+        assertEquals("vk", link.provider)
+        assertEquals("1.2.3.4:56000", link.peer)
+        assertEquals("", link.wgConf)
+        assertEquals(goldenMinimal, link.encode())
+    }
+
+    @Test
+    fun `golden typical - encode matches Go field order and omitempty`() {
+        // Эталон: байт-в-байт вывод Go json.Marshal(wire) для типового конфига.
+        val goldenJson = """{"v":1,"provider":"vk","peer":"1.2.3.4:56000","transport":"udp",""" +
+            """"obf":"rtpopus","key":"d823fa01cb3e0609b67322f7cf984c4ee2e4ce2e294936fc24ef38c9e59f4799","name":"Papa"}"""
+        val golden = "taran://" + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(goldenJson.toByteArray(Charsets.UTF_8))
+
+        val link = taranLink(
+            provider = "vk",
+            peer = "1.2.3.4:56000",
+            transport = "udp",
+            obfProfile = "rtpopus",
+            obfKey = "d823fa01cb3e0609b67322f7cf984c4ee2e4ce2e294936fc24ef38c9e59f4799",
+            name = "Papa"
+        )
+        assertEquals(golden, link.encode())
+    }
+
+    @Test
+    fun `round trip all fields with multiline wg conf`() {
+        val original = taranLink(
+            provider = "vk",
+            peer = "example.com:56000",
+            transport = "udp",
+            mode = "tcp",
+            kcp = KcpProfile.MOBILE,
+            obfProfile = "rtpopus",
+            obfKey = "00".repeat(32),
+            obfTimingMs = 20,
+            n = 10,
+            streamsPerCred = 6,
+            clientId = "cid-1",
+            listen = "127.0.0.1:9000",
+            dnsMode = "doh",
+            dnsServers = "8.8.8.8,8.8.4.4",
+            manualCaptcha = true,
+            name = "Тест Юзер",
+            callLink = "https://call.example/call/abc",
+            wgConf = wgConf
+        )
+        assertEquals(original, taranLink.parse(original.encode()).getOrThrow())
+    }
+
+    @Test
+    fun `timing and call link follow go field order`() {
+        val goldenJson = """{"v":1,"provider":"vk","peer":"1.2.3.4:56000","obf":"rtpopus",""" +
+            """"key":"${"00".repeat(32)}","timing":20,"name":"Papa","vk":"https://call.example/call/join/x"}"""
+        val golden = "taran://" + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(goldenJson.toByteArray(Charsets.UTF_8))
+
+        val link = taranLink(
+            provider = "vk",
+            peer = "1.2.3.4:56000",
+            obfProfile = "rtpopus",
+            obfKey = "00".repeat(32),
+            obfTimingMs = 20,
+            name = "Papa",
+            callLink = "https://call.example/call/join/x"
+        )
+        assertEquals(golden, link.encode())
+    }
+
+    @Test
+    fun `obf none is omitted entirely`() {
+        val link = taranLink(provider = "vk", peer = "1.2.3.4:56000", obfProfile = "none", obfKey = "ff".repeat(32))
+        val parsed = taranLink.parse(link.encode()).getOrThrow()
+        assertEquals("", parsed.obfProfile)
+        assertEquals("", parsed.obfKey)
+    }
+
+    // Ключи ARQ в ссылке строчные (json-теги uri.KCP), а не camelCase конфига ядра.
+    @Test
+    fun `kcp uses go wire keys and sits before name`() {
+        val goldenJson = """{"v":1,"provider":"vk","peer":"1.2.3.4:56000","mode":"tcp",""" +
+            """"kcp":{"nodelay":1,"interval":40,"resend":2,"nc":1,"sndwnd":256,""" +
+            """"rcvwnd":256,"mtu":1200,"acknodelay":false},"name":"Papa"}"""
+        val golden = "taran://" + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(goldenJson.toByteArray(Charsets.UTF_8))
+
+        val link = taranLink(
+            provider = "vk",
+            peer = "1.2.3.4:56000",
+            mode = "tcp",
+            kcp = KcpProfile.MOBILE,
+            name = "Papa"
+        )
+        assertEquals(golden, link.encode())
+        assertEquals(KcpProfile.MOBILE, taranLink.parse(golden).getOrThrow().kcp)
+    }
+
+    @Test
+    fun `link without mode and kcp`() {
+        val parsed = taranLink.parse(goldenMinimal).getOrThrow()
+        assertEquals("", parsed.mode)
+        assertEquals(null, parsed.kcp)
+    }
+
+    @Test
+    fun `unknown json fields are ignored`() {
+        val json = """{"v":1,"provider":"vk","peer":"1.2.3.4:56000","future_field":"x"}"""
+        val raw = "taran://" + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(json.toByteArray(Charsets.UTF_8))
+        assertEquals("1.2.3.4:56000", taranLink.parse(raw).getOrThrow().peer)
+    }
+
+    @Test
+    fun `parse errors`() {
+        assertTrue(taranLink.parse("http://x").isFailure)            // схема
+        assertTrue(taranLink.parse("taran://").isFailure)         // пустой payload
+        assertTrue(taranLink.parse("taran://!!!").isFailure)      // битый base64
+        assertTrue(taranLink.parse(b64Link("not json")).isFailure)   // битый json
+        assertTrue(taranLink.parse(b64Link("""{"v":2,"provider":"vk","peer":"x"}""")).isFailure)
+        assertTrue(taranLink.parse(b64Link("""{"v":1,"peer":"x"}""")).isFailure)
+        assertTrue(taranLink.parse(b64Link("""{"v":1,"provider":"vk"}""")).isFailure)
+    }
+
+    @Test
+    fun `looksLikeLink`() {
+        assertTrue(taranLink.looksLikeLink("  taran://abc "))
+        assertFalse(taranLink.looksLikeLink("https://example.com"))
+    }
+
+    private fun b64Link(json: String): String =
+        "taran://" + Base64.getUrlEncoder().withoutPadding()
+            .encodeToString(json.toByteArray(Charsets.UTF_8))
+}

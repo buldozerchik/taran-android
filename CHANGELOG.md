@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.1](https://github.com/buldozerchik/taran-android/compare/v5.1.0...v5.1.1) (2026-10-24)
+
+
+### Fixes
+
+* Обновлена иконка приложения ([1e2f502](https://github.com/buldozerchik/taran-android/commit/1e2f502f9e149f5276fb4c8e896a8536ecd9ec29))
+
 ## [5.1.0](https://github.com/buldozerchik/taran-android/compare/v5.0.2...v5.1.0) (2026-10-04)
 
 

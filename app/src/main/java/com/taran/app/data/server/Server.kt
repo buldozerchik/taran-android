@@ -13,7 +13,7 @@ data class Server(
     val name: String,
     val ssh: SshConfig = SshConfig(),
     val client: ClientConfig = ClientConfig(),
-    val proxyListen: String = "0.0.0.0:56000",
+    val proxyListen: String = "0.0.0.0:53530",
     val proxyConnect: String = "127.0.0.1:40537",
     val opts: ServerOpts = ServerOpts()
 )

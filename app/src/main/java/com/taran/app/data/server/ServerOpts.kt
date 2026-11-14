@@ -39,7 +39,7 @@ object ServerMethod {
     val VALUES = listOf(DOCKER, SYSTEMD)
 }
 
-/** Куда сервер отдаёт трафик: свой WG ft-wg0 или чужой VPN по `-connect`. */
+/** Куда сервер отдаёт трафик: свой WG tr-wg0 или чужой VPN по `-connect`. */
 object ServerBackend {
     const val NEW = "new"
     const val EXTERNAL = "external"

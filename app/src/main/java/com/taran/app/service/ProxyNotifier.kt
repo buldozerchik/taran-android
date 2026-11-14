@@ -1,5 +1,9 @@
 package com.taran.app.service
 
+import com.taran.app.domain.proxy.TrafficStats
+import android.text.format.Formatter
+import android.os.SystemClock
+import android.os.PowerManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -27,6 +31,7 @@ class ProxyNotifier(private val service: Service) {
         private const val NOTIF_ID_CAPTCHA = 2
         private const val CHANNEL_PROXY = "ProxyChannel"
         private const val CHANNEL_CAPTCHA = "CaptchaChannel"
+        private const val TRAFFIC_NOTIFY_MS = 2_000L
 
         /**
          * Каналы заводятся один раз за процесс, из [android.app.Application]. В onCreate
@@ -57,6 +62,9 @@ class ProxyNotifier(private val service: Service) {
     private var shownTunnelMode = false
     private var shownProvider: String? = null
     private var captchaShown = false
+    private var captchaManualShown = false
+    private var traffic: TrafficStats? = null
+    private var trafficNotifiedAt = 0L
 
     private val openApp: PendingIntent? by lazy {
         service.packageManager.getLaunchIntentForPackage(service.packageName)?.let {
@@ -77,11 +85,15 @@ class ProxyNotifier(private val service: Service) {
     fun build(): Notification =
         build(ProxyStatus(phase = ProxyPhase.Connecting), tunnelMode = false, provider = null)
 
+    @Synchronized
     fun update(status: ProxyStatus, tunnelMode: Boolean, provider: String?) {
-        if (status.captchaUrl.isNotEmpty()) showCaptcha() else cancelCaptcha()
+        if (status.captchaUrl.isNotEmpty() && status.captchaManual) showCaptcha(manual = true)
+        else cancelCaptcha()
+        if (status.phase != ProxyPhase.Connected || !tunnelMode) traffic = null
         val prev = shown
         if (prev != null && tunnelMode == shownTunnelMode && provider == shownProvider &&
-            prev.phase == status.phase && prev.active == status.active && prev.total == status.total
+            prev.phase == status.phase && prev.active == status.active && prev.total == status.total &&
+            prev.captchaUrl == status.captchaUrl && prev.captchaManual == status.captchaManual
         ) {
             return
         }
@@ -91,12 +103,28 @@ class ProxyNotifier(private val service: Service) {
         notify(NOTIF_ID_FG, build(status, tunnelMode, provider))
     }
 
+    /** Скорость и трафик в нотификацию: не чаще раза в 2 с и только при включённом экране. */
+    @Synchronized
+    fun updateTraffic(stats: TrafficStats) {
+        val status = shown ?: return
+        if (status.phase != ProxyPhase.Connected || !shownTunnelMode) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - trafficNotifiedAt < TRAFFIC_NOTIFY_MS) return
+        if (service.getSystemService(PowerManager::class.java)?.isInteractive == false) return
+        traffic = stats
+        trafficNotifiedAt = now
+        notify(NOTIF_ID_FG, build(status, shownTunnelMode, shownProvider))
+    }
+
     private fun build(status: ProxyStatus, tunnelMode: Boolean, provider: String?): Notification {
         val connected = status.phase == ProxyPhase.Connected
         val title = when {
             connected && tunnelMode -> service.getString(R.string.tunnel_active)
             connected -> service.getString(R.string.proxy_active)
             status.phase == ProxyPhase.Error -> service.getString(R.string.notif_proxy_connect_error)
+            status.phase == ProxyPhase.Captcha && status.captchaUrl.isEmpty() -> service.getString(R.string.notif_captcha_title)
+            status.phase == ProxyPhase.Captcha && !status.captchaManual -> service.getString(R.string.notif_captcha_auto)
+            status.phase == ProxyPhase.Captcha -> service.getString(R.string.notif_captcha_manual)
             else -> service.getString(R.string.notif_proxy_connecting)
         }
         // direct - всегда один поток: счётчик там ничего не сообщает.
@@ -104,15 +132,31 @@ class ProxyNotifier(private val service: Service) {
         val details = listOfNotNull(providerText(provider), streams)
             .joinToString(" · ")
             .ifEmpty { service.getString(R.string.notif_proxy_title) }
-        return NotificationCompat.Builder(service, CHANNEL_PROXY)
+        val stats = traffic?.takeIf { connected && tunnelMode }
+        val speed = stats?.let {
+            service.getString(R.string.traffic_speed, size(it.rxRate), size(it.txRate))
+        }
+        val total = stats?.let {
+            service.getString(R.string.traffic_total, size(it.rxTotal), size(it.txTotal))
+        }
+        val builder = NotificationCompat.Builder(service, CHANNEL_PROXY)
             .setContentTitle(title)
-            .setContentText(details)
+            .setContentText(listOfNotNull(speed, details).joinToString(" · "))
             .setSmallIcon(R.drawable.ic_taran)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setContentIntent(openApp)
             .addAction(0, service.getString(R.string.notif_proxy_stop_action), stopAction)
-            .build()
+        if (speed != null && total != null) {
+            builder.setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText(listOf(details, speed, total).joinToString("\n"))
+            )
+        }
+        return builder.build()
     }
+
+    private fun size(bytes: Long): String = Formatter.formatFileSize(service, bytes)
 
     private fun providerText(provider: String?): String? = when (provider) {
         Provider.RELAY -> service.getString(R.string.provider_relay)
@@ -129,14 +173,15 @@ class ProxyNotifier(private val service: Service) {
         ) else null
 
     /** Дедуп: пока предыдущий алерт не закрыт - повторно не шумим. */
-    private fun showCaptcha() {
-        if (captchaShown) return
+    private fun showCaptcha(manual: Boolean) {
+        if (captchaShown && captchaManualShown == manual) return
         captchaShown = true
+        captchaManualShown = manual
         notify(
             NOTIF_ID_CAPTCHA,
             NotificationCompat.Builder(service, CHANNEL_CAPTCHA)
                 .setContentTitle(service.getString(R.string.notif_captcha_title))
-                .setContentText(service.getString(R.string.notif_captcha_text))
+                .setContentText(service.getString(if (manual) R.string.notif_captcha_manual else R.string.notif_captcha_auto))
                 .setSmallIcon(R.drawable.ic_notification_captcha)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -149,6 +194,7 @@ class ProxyNotifier(private val service: Service) {
     fun cancelCaptcha() {
         if (!captchaShown) return
         captchaShown = false
+        captchaManualShown = false
         NotificationManagerCompat.from(service).cancel(NOTIF_ID_CAPTCHA)
     }
 

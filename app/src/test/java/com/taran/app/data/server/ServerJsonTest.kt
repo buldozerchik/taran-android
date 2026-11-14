@@ -11,6 +11,30 @@ import org.junit.Test
 class ServerJsonTest {
 
     @Test
+    fun `shared split flag and local rules survive serialization`() {
+        val client = ClientConfig(
+            splitTunnelShared = true,
+            splitTunnelMode = "include",
+            splitTunnelApps = "org.example.one org.example.two"
+        )
+        val decoded = ServerJson.decodeList(
+            ServerJson.encodeList(listOf(Server(name = "shared", client = client)))
+        ).single().client
+        assertEquals(true, decoded.splitTunnelShared)
+        assertEquals(client.splitTunnelMode, decoded.splitTunnelMode)
+        assertEquals(client.splitTunnelApps, decoded.splitTunnelApps)
+    }
+
+    @Test
+    fun `old profiles keep individual split rules`() {
+        val raw = """[{"id":"old","client":{"splitTunnelMode":"include","splitTunnelApps":"org.example.one"}}]"""
+        val decoded = ServerJson.decodeList(raw).single().client
+        assertEquals(false, decoded.splitTunnelShared)
+        assertEquals("include", decoded.splitTunnelMode)
+        assertEquals("org.example.one", decoded.splitTunnelApps)
+    }
+
+    @Test
     fun `bond persists and old profiles keep it disabled`() {
         val server = Server(name = "bond", client = ClientConfig(bond = true))
         val decoded = ServerJson.decodeList(ServerJson.encodeList(listOf(server))).single()

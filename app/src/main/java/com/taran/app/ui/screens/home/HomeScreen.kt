@@ -5,6 +5,7 @@
 
 package com.taran.app.ui.screens.home
 
+import androidx.compose.foundation.layout.heightIn
 import android.content.Intent
 import android.net.VpnService
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -58,6 +59,8 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     val status by proxyViewModel.status.collectAsStateWithLifecycle()
+    val traffic by proxyViewModel.traffic.collectAsStateWithLifecycle()
+    val ping by proxyViewModel.ping.collectAsStateWithLifecycle()
     val uptimeText = rememberProxyUptime(status.connectedSince)
     val clientConfig by serverConfigViewModel.clientConfig.collectAsStateWithLifecycle()
     val updateState by settingsViewModel.updateState.collectAsStateWithLifecycle()
@@ -153,7 +156,7 @@ fun HomeScreen(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = HeroAboveBottomArrangement
                 ) {
                     ConnectionHero(
                         status = status,
@@ -172,20 +175,31 @@ fun HomeScreen(
                             }
                         }
                     )
-                }
-
-                // Индикатор split-tunneling (только для WG).
-                if (clientConfig.wireGuardActive) {
-                    SplitTunnelChip(
-                        splitActive = clientConfig.splitTunnelMode != SplitTunnelMode.ALL,
-                        onClick = {
-                            HapticUtil.perform(context, HapticUtil.Pattern.CLICK)
-                            showSplitSheet.value = true
-                        },
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = Spacing.md)
-                    )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        ConnectionStatsCard(
+                            status = status,
+                            traffic = traffic,
+                            ping = ping,
+                            onPingClick = proxyViewModel::refreshPing,
+                            modifier = Modifier
+                                .heightIn(min = StatsCardMinHeight)
+                                .padding(top = Spacing.lg)
+                        )
+                        if (clientConfig.wireGuardActive) {
+                            SplitTunnelChip(
+                                splitActive = clientConfig.splitTunnelMode !=
+                                    SplitTunnelMode.ALL,
+                                onClick = {
+                                    HapticUtil.perform(
+                                        context,
+                                        HapticUtil.Pattern.CLICK
+                                    )
+                                    showSplitSheet.value = true
+                                },
+                                modifier = Modifier.padding(bottom = Spacing.md)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -198,6 +212,9 @@ fun HomeScreen(
             locked = status.busy,
             onModeChange = serverConfigViewModel::setSplitTunnelMode,
             onAppsChange = serverConfigViewModel::setSplitTunnelApps,
+            shared = clientConfig.splitTunnelShared,
+            sharedUsage = serverConfigViewModel.splitSharedUsage.collectAsStateWithLifecycle(0 to 0).value,
+            onSharedChange = serverConfigViewModel::setSplitShared,
             onDismiss = { showSplitSheet.value = false },
             containerColor = sheetColor
         )

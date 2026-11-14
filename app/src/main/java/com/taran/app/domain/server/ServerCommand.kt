@@ -105,7 +105,7 @@ fun Server.applyOptions(): ApplyOptions = ApplyOptions(
     obfKey = opts.obfKey
 )
 
-private const val DEFAULT_LISTEN_PORT = 56000
+private const val DEFAULT_LISTEN_PORT = 53530
 
 /** Итог `apply`: что сервер выдал сам и что надо положить в профиль. */
 data class ApplyResult(

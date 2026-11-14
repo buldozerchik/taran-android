@@ -137,7 +137,7 @@
     <string name="setup_backend_label">VPN на сервере</string>
     <string name="setup_backend_new">taran WG</string>
     <string name="setup_backend_external">Мой VPN</string>
-    <string name="setup_backend_new_desc">Установщик поставит на сервер WireGuard (интерфейс ft-wg0) и сам выпустит конфиги - для вас и для тех, с кем поделитесь.</string>
+    <string name="setup_backend_new_desc">Установщик поставит на сервер WireGuard (интерфейс tr-wg0) и сам выпустит конфиги - для вас и для тех, с кем поделитесь.</string>
     <string name="setup_backend_external_desc">На сервере уже работает ваш VPN (Amnezia, wg-easy, 3x-ui). taran только передаёт в него трафик и сам VPN не трогает - клиентские конфиги берите в его панели.</string>
     <string name="setup_wg_net_label">Подсеть WireGuard</string>
     <string name="setup_wg_net_desc">Адреса клиентов, у сервера - .1. Не должна пересекаться с сетями сервера.</string>
@@ -174,7 +174,7 @@
     <string name="setup_task_state_active">Выполняется</string>
     <string name="setup_task_state_failed">Ошибка</string>
     <string name="setup_task_state_pending">В ожидании</string>
-    <string name="proxy_captcha_required">Требуется прохождение капчи</string>
+    <string name="proxy_captcha_required">Проверка CAPTCHA</string>
     <string name="tcp" translatable="false">TCP</string>
     <string name="udp" translatable="false">UDP</string>
     <string name="ssh_connecting">SSH: сопряжение…</string>
@@ -338,8 +338,7 @@
     <string name="notif_proxy_connecting">Подключение…</string>
     <string name="notif_channel_proxy">Прокси</string>
     <string name="notif_channel_captcha">Капча</string>
-    <string name="notif_captcha_title">Требуется прохождение капчи</string>
-    <string name="notif_captcha_text">Откройте приложение для проверки</string>
+    <string name="notif_captcha_title">Проверка CAPTCHA</string>
     <string name="notif_proxy_connect_error">Ошибка подключения</string>
     <string name="notif_proxy_vpn_permission">Нужно разрешение VPN - откройте приложение</string>
     <string name="notif_proxy_vpn_denied">Разрешение VPN не выдано - прокси не запущен</string>
@@ -417,7 +416,7 @@
     <string name="nerd_mode">Режим отладки</string>
     <string name="nerd_mode_desc">Открывает отладочную информацию: состояние ядра, журнал сервера и подробные логи</string>
     <string name="hotspot_proxy" translatable="false">SOCKS5 Hotspot</string>
-    <string name="hotspot_proxy_desc">Слушать на 0.0.0.0:1080 для раздачи WireGuard-туннеля через точку доступа</string>
+    <string name="hotspot_proxy_desc">Слушать на 0.0.0.0 для раздачи WireGuard-туннеля через точку доступа</string>
     <string name="restart_server_on_switch">Перезапуск сервера при смене профиля</string>
     <string name="restart_server_on_switch_desc">Перезапускать сервер под параметры нового профиля</string>
     <string name="nerd_section_title">Отладочная информация</string>
@@ -584,4 +583,35 @@
     <string name="v5_setup_notice_title">Переход на taran 5</string>
     <string name="v5_setup_notice_message">Версия 5 несовместима с прежними настройками: добавленные серверы и профили подключения работать не будут, их придётся настроить с нуля.\n\nЗаново добавьте сервер или импортируйте новую ссылку подключения на вкладке \"Соединение\" (+), затем проверьте параметры VPN и раздельного туннелирования.\n\nЭто сообщение показывается один раз.</string>
     <string name="v5_setup_notice_confirm">Понятно</string>
+    <string name="notif_captcha_auto">CAPTCHA решается</string>
+    <string name="notif_captcha_manual">Требуется ручное решение CAPTCHA</string>
+    <string name="advanced_captcha">Продвинутое решение CAPTCHA</string>
+    <string name="advanced_captcha_desc">Новый способ решения капчи. В будущем он может стать основным и эта настройка будет удалена.</string>
+    <string name="advanced_captcha_disabled_manual_desc">Недоступно при ручном вводе капчи. Сохранённый выбор применится после отключения ручного режима.</string>
+    <string name="split_tunnel_shared">Общие для всех профилей</string>
+    <string name="split_tunnel_shared_desc">Один набор правил для всех профилей, где это включено</string>
+    <string name="split_tunnel_shared_users">Используют %1$d из %2$d профилей. Правки затронут их все</string>
+    <string name="hotspot_port">Порт</string>
+    <string name="hotspot_port_hint">1024-65535, применится при следующем запуске</string>
+    <string name="hotspot_user">Логин</string>
+    <string name="hotspot_pass">Пароль</string>
+    <string name="hotspot_auth_hint">Пустой логин - без авторизации</string>
+    <string name="hotspot_udp">UDP через SOCKS5</string>
+    <string name="hotspot_udp_desc">UDP ASSOCIATE для QUIC и UDP-DNS. Без логина и пароля UDP открыт всей локальной сети</string>
+    <string name="traffic_speed">↓ %1$s/с   ↑ %2$s/с</string>
+    <string name="traffic_total">Принято %1$s · Отправлено %2$s</string>
+    <string name="traffic_rate">%1$s/с</string>
+    <string name="ping_value">%1$d мс</string>
+    <string name="ping_none">— мс</string>
+    <string name="ping_cd">Пинг, нажмите чтобы обновить</string>
+    <string name="ping_outside">Пинг недоступен: приложение исключено из туннеля</string>
+    <string name="appearance_theme_title">Тема</string>
+    <string name="appearance_theme_system">Системная</string>
+    <string name="appearance_theme_light">Светлая</string>
+    <string name="appearance_theme_dark">Тёмная</string>
+    <string name="appearance_amoled_title">Чёрный фон (AMOLED)</string>
+    <string name="appearance_amoled_desc">Для OLED-экранов, в тёмной теме</string>
+    <string name="external_control_hint">Включите «Внешнее управление» в настройках, иначе ярлык не сработает</string>
+    <string name="external_control">Внешнее управление</string>
+    <string name="external_control_desc">Разрешить Tasker, MacroDroid и другим приложениям запускать и останавливать прокси. Включайте, только если доверяете установленным приложениям</string>
 </resources>

@@ -3,6 +3,8 @@ package com.taran.app.viewmodel.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.taran.app.data.AppPreferences
+import com.taran.app.data.config.Socks5Config
+import com.taran.app.data.config.ThemeMode
 import com.taran.app.domain.UpdateState
 import com.taran.app.domain.update.AppUpdater
 import kotlinx.coroutines.flow.Flow
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -29,7 +32,13 @@ class SettingsViewModel(
         stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), initial)
 
     val dynamicTheme: StateFlow<Boolean> = prefs.dynamicThemeFlow.state(true)
+    val themeMode: StateFlow<String> =
+        prefs.themeModeFlow.state(ThemeMode.SYSTEM)
+    val amoled: StateFlow<Boolean> = prefs.amoledFlow.state(false)
     val nerdMode: StateFlow<Boolean> = prefs.nerdModeFlow.state(true)
+    val advancedCaptcha: StateFlow<Boolean> = prefs.advancedCaptchaFlow.state(false)
+    val manualCaptcha: StateFlow<Boolean> =
+        prefs.clientConfigFlow.map { it.manualCaptcha }.state(false)
     val privacyMode: StateFlow<Boolean> = prefs.privacyModeFlow.state(false)
     val seasonalDecor: StateFlow<Boolean> = prefs.seasonalDecorFlow.state(true)
     val autoConnect: StateFlow<Boolean> = prefs.autoConnectFlow.state(false)
@@ -92,12 +101,41 @@ class SettingsViewModel(
         viewModelScope.launch { prefs.setHotspotProxyEnabled(enabled) }
     }
 
+    suspend fun hotspotConfig(): Socks5Config = prefs.hotspotConfig()
+
+    fun setHotspotPort(port: Int) {
+        viewModelScope.launch { prefs.setHotspotPort(port) }
+    }
+
+    fun setHotspotAuth(user: String, pass: String) {
+        viewModelScope.launch { prefs.setHotspotAuth(user, pass) }
+    }
+
+    fun setHotspotUdp(enabled: Boolean) {
+        viewModelScope.launch { prefs.setHotspotUdp(enabled) }
+    }
+
     fun setDynamicTheme(enabled: Boolean) {
         viewModelScope.launch { prefs.setDynamicTheme(enabled) }
     }
 
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch { prefs.setThemeMode(mode) }
+    }
+
+    fun setAmoled(enabled: Boolean) {
+        viewModelScope.launch { prefs.setAmoled(enabled) }
+    }
+
     fun setNerdMode(enabled: Boolean) {
         viewModelScope.launch { prefs.setNerdMode(enabled) }
+    }
+
+    fun setAdvancedCaptcha(enabled: Boolean) {
+        viewModelScope.launch {
+            if (enabled && prefs.clientConfigFlow.first().manualCaptcha) return@launch
+            prefs.setAdvancedCaptcha(enabled)
+        }
     }
 
     fun setTgSubscribeShown() {

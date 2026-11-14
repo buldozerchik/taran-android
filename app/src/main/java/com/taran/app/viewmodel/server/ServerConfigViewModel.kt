@@ -48,7 +48,7 @@ class ServerConfigViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ClientConfig())
 
     val proxyListen: StateFlow<String> = prefs.proxyListenFlow
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "0.0.0.0:56000")
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "0.0.0.0:53530")
 
     val proxyConnect: StateFlow<String> = prefs.proxyConnectFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "127.0.0.1:40537")
@@ -117,10 +117,20 @@ class ServerConfigViewModel(
 
     fun setActiveProvider(provider: String) = updateActiveClient { it.copy(provider = provider) }
 
-    fun setSplitTunnelMode(value: String) = updateActiveClient { it.copy(splitTunnelMode = value) }
+    fun setSplitTunnelMode(value: String) {
+        viewModelScope.launch { prefs.setSplitTunnelRule(mode = value) }
+    }
 
-    fun setSplitTunnelApps(value: String) =
-        updateActiveClient { it.copy(splitTunnelApps = value.trim()) }
+    fun setSplitTunnelApps(value: String) {
+        viewModelScope.launch { prefs.setSplitTunnelRule(apps = value.trim()) }
+    }
+
+    fun setSplitShared(enabled: Boolean) {
+        viewModelScope.launch { prefs.setSplitShared(enabled) }
+    }
+
+    val splitSharedUsage: kotlinx.coroutines.flow.Flow<Pair<Int, Int>> =
+        prefs.splitSharedUsageFlow
 
     fun setSyncServerSwitches(enabled: Boolean) {
         viewModelScope.launch {

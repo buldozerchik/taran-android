@@ -1,5 +1,6 @@
 package com.taran.app.service
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.drawable.Icon
@@ -56,7 +57,7 @@ class ProxyTileService : TileService(), KoinComponent {
             return
         }
         // START - через activity-трамплин: согласие на VPN спрашивается только оттуда.
-        val intent = ProxyShortcutActivity.startIntent(this)
+        val intent = ProxyTrampolineActivity.startIntent(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startActivityAndCollapse(
                 PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE)
@@ -67,6 +68,7 @@ class ProxyTileService : TileService(), KoinComponent {
     }
 
     /** PendingIntent-перегрузка появилась только в API 34, ниже другого способа свернуть шторку нет. */
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     @Suppress("DEPRECATION")
     private fun startActivityAndCollapseLegacy(intent: Intent) = startActivityAndCollapse(intent)
 

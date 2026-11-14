@@ -19,7 +19,7 @@ class ServerSetupRepository(context: Context, private val ssh: SSHManager) {
     suspend fun apply(cfg: SshConfig, opts: ApplyOptions): Result<ApplyResult> =
         control.run(cfg, ServerCommand.Apply(opts)).applyResult()
 
-    /** Снос taran, нашего ft-wg0 и каталога установки; чужой WG скрипт не трогает. */
+    /** Снос taran, нашего tr-wg0 и каталога установки; чужой WG скрипт не трогает. */
     suspend fun uninstall(cfg: SshConfig): Result<Unit> =
         control.run(cfg, ServerCommand.Uninstall).asUnit()
 }

@@ -16,6 +16,28 @@ import org.junit.Test
 class CoreConfigJsonTest {
 
     @Test
+    fun captchaDefaultsKeepAutomaticSolverAndDisableAdvancedMode() {
+        val relay = parse(base)["vk"]!!.jsonObject
+        assertEquals("true", relay["autoCaptcha"]!!.jsonPrimitive.content)
+        assertEquals("false", relay["advancedCaptcha"]!!.jsonPrimitive.content)
+        assertEquals("false", relay["manualCaptcha"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun advancedCaptchaIsEnabledOnlyOutsideManualMode() {
+        fun relay(manual: Boolean) = Json.parseToJsonElement(
+            base.copy(manualCaptcha = manual).toCoreJson(
+                ServerOpts(), advancedCaptchaEnabled = true
+            )
+        ).jsonObject["vk"]!!.jsonObject
+
+        assertEquals("true", relay(false)["advancedCaptcha"]!!.jsonPrimitive.content)
+        val manual = relay(true)
+        assertEquals("true", manual["manualCaptcha"]!!.jsonPrimitive.content)
+        assertEquals("false", manual["advancedCaptcha"]!!.jsonPrimitive.content)
+    }
+
+    @Test
     fun bondIsSentOnlyWhenEnabledForTcpProxy() {
         val client = ClientConfig(bond = true)
         val tcp = ServerOpts(proxyMode = ProxyMode.TCP)

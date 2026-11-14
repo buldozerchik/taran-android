@@ -91,7 +91,7 @@ fun AboutScreen(onBack: () -> Unit) {
 
                 SectionLabel(stringResource(R.string.about_links))
                 SettingsGroup {
-                    SettingsGroupItem(0, 3) {
+                    SettingsGroupItem(0, 2) {
                         SettingsEntryRow(
                             iconRes = R.drawable.code_24px,
                             title = stringResource(R.string.android_client),
@@ -101,7 +101,7 @@ fun AboutScreen(onBack: () -> Unit) {
                             onClick = { open("https://github.com/buldozerchik/taran-android") }
                         )
                     }
-                    SettingsGroupItem(1, 3) {
+                    SettingsGroupItem(1, 2) {
                         SettingsEntryRow(
                             iconRes = R.drawable.terminal_24px,
                             title = stringResource(R.string.proxy_core),

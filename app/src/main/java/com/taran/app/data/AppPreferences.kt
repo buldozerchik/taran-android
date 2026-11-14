@@ -9,6 +9,8 @@ import com.taran.app.BuildConfig
 import com.taran.app.R
 import com.taran.app.data.backup.BackupData
 import com.taran.app.data.config.ClientConfig
+import com.taran.app.data.config.Socks5Config
+import com.taran.app.data.config.ThemeMode
 import com.taran.app.data.config.ClientId
 import com.taran.app.data.config.SshConfig
 import com.taran.app.data.server.Server
@@ -21,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -44,7 +47,10 @@ class AppPreferences(context: Context) {
         private const val V5_VERSION_CODE = 50000
         private val V5_SETUP_NOTICE_PENDING = booleanPreferencesKey("v5_setup_notice_pending")
         val DYNAMIC_THEME = booleanPreferencesKey("dynamic_theme")
+        val THEME_MODE = stringPreferencesKey("theme_mode")
+        val AMOLED = booleanPreferencesKey("amoled")
         val NERD_MODE = booleanPreferencesKey("nerd_mode")
+        val ADVANCED_CAPTCHA = booleanPreferencesKey("advanced_captcha")
         val PRIVACY_MODE = booleanPreferencesKey("privacy_mode")
         val SEASONAL_DECOR = booleanPreferencesKey("seasonal_decor")
         val TG_SUBSCRIBE_SHOWN = booleanPreferencesKey("tg_subscribe_shown")
@@ -53,6 +59,13 @@ class AppPreferences(context: Context) {
         val BATTERY_PROMPT_SHOWN = booleanPreferencesKey("battery_prompt_shown")
         val RESTART_SERVER_ON_SWITCH = booleanPreferencesKey("restart_server_on_switch")
         val HOTSPOT_PROXY = booleanPreferencesKey("hotspot_proxy")
+        val HOTSPOT_PORT =
+            androidx.datastore.preferences.core.intPreferencesKey("hotspot_port")
+        val HOTSPOT_USER = stringPreferencesKey("hotspot_user")
+        val HOTSPOT_PASS = stringPreferencesKey("hotspot_pass")
+        val HOTSPOT_UDP = booleanPreferencesKey("hotspot_udp")
+        val SPLIT_SHARED_MODE = stringPreferencesKey("split_shared_mode")
+        val SPLIT_SHARED_APPS = stringPreferencesKey("split_shared_apps")
         val SERVERS_JSON = stringPreferencesKey("servers_json")
         val ACTIVE_SERVER_ID = stringPreferencesKey("active_server_id")
         val OWN_CLIENT_ID = stringPreferencesKey("own_client_id")
@@ -137,11 +150,33 @@ class AppPreferences(context: Context) {
     val sshConfigFlow: Flow<SshConfig> =
         activeServerFlow.map { it?.ssh ?: SshConfig() }.distinctUntilChanged()
 
+    /** Общие правила раздельного туннелирования; null - ещё не созданы. */
+    val splitSharedFlow: Flow<SplitRules?> = prefFlow { p ->
+        p[SPLIT_SHARED_MODE]?.let { SplitRules(it, p[SPLIT_SHARED_APPS].orEmpty()) }
+    }
+
+    /** Конфиг активного сервера; правила туннелирования общие, если включена галочка. */
     val clientConfigFlow: Flow<ClientConfig> =
-        activeServerFlow.map { it?.client ?: ClientConfig() }.distinctUntilChanged()
+        activeServerFlow.combine(splitSharedFlow) { server, shared ->
+            (server?.client ?: ClientConfig()).withShared(shared)
+        }.distinctUntilChanged()
+
+    private fun ClientConfig.withShared(shared: SplitRules?): ClientConfig =
+        if (splitTunnelShared && shared != null) {
+            copy(splitTunnelMode = shared.mode, splitTunnelApps = shared.apps)
+        } else this
+
+    /** Конфиг переданного сервера с применёнными общими правилами (для запуска туннеля). */
+    suspend fun effectiveClient(server: Server?): ClientConfig =
+        (server?.client ?: ClientConfig()).withShared(splitSharedFlow.first())
+
+    /** Сколько профилей используют общие правила и сколько профилей всего. */
+    val splitSharedUsageFlow: Flow<Pair<Int, Int>> = serversSnapshot.map { snap ->
+        snap.list.count { it.client.splitTunnelShared } to snap.list.size
+    }.distinctUntilChanged()
 
     val proxyListenFlow: Flow<String> =
-        activeServerFlow.map { it?.proxyListen ?: "0.0.0.0:56000" }.distinctUntilChanged()
+        activeServerFlow.map { it?.proxyListen ?: "0.0.0.0:53530" }.distinctUntilChanged()
 
     val proxyConnectFlow: Flow<String> =
         activeServerFlow.map { it?.proxyConnect ?: "127.0.0.1:40537" }.distinctUntilChanged()
@@ -151,7 +186,15 @@ class AppPreferences(context: Context) {
 
     val dynamicThemeFlow: Flow<Boolean> = prefFlow { prefs -> prefs[DYNAMIC_THEME] ?: true }
 
+    val themeModeFlow: Flow<String> =
+        prefFlow { p -> ThemeMode.normalize(p[THEME_MODE]) }
+
+    val amoledFlow: Flow<Boolean> =
+        prefFlow { p -> p[AMOLED] ?: false }
+
     val nerdModeFlow: Flow<Boolean> = prefFlow { prefs -> prefs[NERD_MODE] ?: true }
+
+    val advancedCaptchaFlow: Flow<Boolean> = prefFlow { prefs -> prefs[ADVANCED_CAPTCHA] ?: false }
 
     val privacyModeFlow: Flow<Boolean> = prefFlow { prefs -> prefs[PRIVACY_MODE] ?: false }
 
@@ -165,6 +208,18 @@ class AppPreferences(context: Context) {
     // Раздача туннеля по SOCKS5 наружу. Работает только в WG-режиме: без tun сокеты
     // сервера уходят напрямую, и клиенты хотспота получили бы канал мимо туннеля.
     val hotspotProxyEnabledFlow: Flow<Boolean> = prefFlow { prefs -> prefs[HOTSPOT_PROXY] ?: false }
+
+    val hotspotPortFlow: Flow<Int> = prefFlow { prefs -> prefs[HOTSPOT_PORT] ?: 1080 }
+    val hotspotUserFlow: Flow<String> = prefFlow { prefs -> prefs[HOTSPOT_USER] ?: "" }
+    val hotspotPassFlow: Flow<String> = prefFlow { prefs -> prefs[HOTSPOT_PASS] ?: "" }
+    val hotspotUdpFlow: Flow<Boolean> = prefFlow { prefs -> prefs[HOTSPOT_UDP] ?: false }
+
+    suspend fun hotspotConfig(): Socks5Config = Socks5Config(
+        port = hotspotPortFlow.first(),
+        user = hotspotUserFlow.first(),
+        pass = hotspotPassFlow.first(),
+        udp = hotspotUdpFlow.first(),
+    )
 
     val tgSubscribeShownFlow: Flow<Boolean> = prefFlow { prefs -> prefs[TG_SUBSCRIBE_SHOWN] ?: false }
 
@@ -318,8 +373,22 @@ class AppPreferences(context: Context) {
         context.dataStore.edit { prefs -> prefs[DYNAMIC_THEME] = enabled }
     }
 
+    suspend fun setThemeMode(mode: String) {
+        context.dataStore.edit {
+            it[THEME_MODE] = ThemeMode.normalize(mode)
+        }
+    }
+
+    suspend fun setAmoled(enabled: Boolean) {
+        context.dataStore.edit { it[AMOLED] = enabled }
+    }
+
     suspend fun setNerdMode(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[NERD_MODE] = enabled }
+    }
+
+    suspend fun setAdvancedCaptcha(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[ADVANCED_CAPTCHA] = enabled }
     }
 
     suspend fun setPrivacyMode(enabled: Boolean) {
@@ -340,6 +409,69 @@ class AppPreferences(context: Context) {
 
     suspend fun setHotspotProxyEnabled(enabled: Boolean) {
         context.dataStore.edit { it[HOTSPOT_PROXY] = enabled }
+    }
+
+    suspend fun setHotspotPort(port: Int) {
+        context.dataStore.edit { it[HOTSPOT_PORT] = port }
+    }
+
+    suspend fun setHotspotAuth(user: String, pass: String) {
+        context.dataStore.edit {
+            it[HOTSPOT_USER] = user
+            it[HOTSPOT_PASS] = pass
+        }
+    }
+
+    suspend fun setHotspotUdp(enabled: Boolean) {
+        context.dataStore.edit { it[HOTSPOT_UDP] = enabled }
+    }
+
+    /** Правка правил: в общий набор, если у активного сервера включена галочка, иначе в его свои. */
+    suspend fun setSplitTunnelRule(mode: String? = null, apps: String? = null) {
+        val cfg = clientConfigFlow.first()
+        if (cfg.splitTunnelShared) {
+            context.dataStore.edit { p ->
+                p[SPLIT_SHARED_MODE] = mode ?: cfg.splitTunnelMode
+                p[SPLIT_SHARED_APPS] = apps ?: cfg.splitTunnelApps
+            }
+        } else {
+            updateActiveServer { s ->
+                s.copy(
+                    client = s.client.copy(
+                        splitTunnelMode = mode ?: s.client.splitTunnelMode,
+                        splitTunnelApps = apps ?: s.client.splitTunnelApps
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Включение: общий набор создаётся из правил этого сервера, если его ещё нет.
+     * Выключение: общий набор копируется в собственные правила сервера, остальные не меняются.
+     */
+    suspend fun setSplitShared(enabled: Boolean) {
+        val own = serversSnapshot.first().active?.client ?: return
+        val shared = splitSharedFlow.first()
+        if (enabled) {
+            if (shared == null) {
+                context.dataStore.edit {
+                    it[SPLIT_SHARED_MODE] = own.splitTunnelMode
+                    it[SPLIT_SHARED_APPS] = own.splitTunnelApps
+                }
+            }
+            updateActiveServer { s -> s.copy(client = s.client.copy(splitTunnelShared = true)) }
+        } else {
+            updateActiveServer { s ->
+                s.copy(
+                    client = s.client.copy(
+                        splitTunnelShared = false,
+                        splitTunnelMode = shared?.mode ?: s.client.splitTunnelMode,
+                        splitTunnelApps = shared?.apps ?: s.client.splitTunnelApps
+                    )
+                )
+            }
+        }
     }
 
     suspend fun setTgSubscribeShown() {
@@ -388,7 +520,12 @@ class AppPreferences(context: Context) {
             autoConnect = autoConnectFlow.first(),
             hotspotProxy = hotspotProxyEnabledFlow.first(),
             suppressUpdatePrompt = suppressUpdatePromptFlow.first(),
-            suppressTgPrompt = suppressTgPromptFlow.first()
+            suppressTgPrompt = suppressTgPromptFlow.first(),
+            advancedCaptcha = advancedCaptchaFlow.first(),
+            splitSharedMode = splitSharedFlow.first()?.mode,
+            splitSharedApps = splitSharedFlow.first()?.apps.orEmpty(),
+            themeMode = themeModeFlow.first(),
+            amoled = amoledFlow.first()
         )
     }
 
@@ -418,7 +555,17 @@ class AppPreferences(context: Context) {
             prefs[HOTSPOT_PROXY] = data.hotspotProxy
             prefs[SUPPRESS_UPDATE_PROMPT] = data.suppressUpdatePrompt
             prefs[SUPPRESS_TG_PROMPT] = data.suppressTgPrompt
+            prefs[ADVANCED_CAPTCHA] = data.advancedCaptcha
+            prefs[THEME_MODE] = ThemeMode.normalize(data.themeMode)
+            prefs[AMOLED] = data.amoled
+            data.splitSharedMode?.let {
+                prefs[SPLIT_SHARED_MODE] = it
+                prefs[SPLIT_SHARED_APPS] = data.splitSharedApps
+            }
         }
         return data.servers.size
     }
 }
+
+/** Общие правила раздельного туннелирования. */
+data class SplitRules(val mode: String, val apps: String)

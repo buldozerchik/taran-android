@@ -97,7 +97,7 @@ fun ServerManagementScreen(
     val effClient = if (isActive) clientCfg else (server?.client ?: clientCfg)
     val effServer = if (isActive) serverOpts else (server?.opts ?: serverOpts)
 
-    var proxyListenPort by rememberSaveable(savedListen) { mutableStateOf(savedListen.substringAfterLast(":", "56000")) }
+    var proxyListenPort by rememberSaveable(savedListen) { mutableStateOf(savedListen.substringAfterLast(":", "53530")) }
     var proxyConnect by rememberSaveable(savedConnect) { mutableStateOf(savedConnect) }
     var tcpDraft by rememberSaveable(effServer.tcpMode) { mutableStateOf(effServer.tcpMode) }
     var obfDraft by rememberSaveable(effServer.obfProfile) { mutableStateOf(effServer.obfProfile) }

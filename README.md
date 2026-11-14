@@ -34,9 +34,20 @@
 - **VPS**
 - **Ссылка на звонок** для режима Relay; для Direct не требуется
 
+## Локальная сборка обновлённого ядра
+
+Изменения капчи требуют совместного обновления приложения и AAR: `EventSink.onCaptcha` принимает URL и признак ручного решения. Для проверки до публикации нового релиза ядра поместите свежие `taran.aar` и `install.sh` в `app/libs/` и собирайте с `-PtaranAar=local`:
+
+```powershell
+.\gradlew.bat testDebugUnitTest assembleDebug lintDebug -PtaranAar=local --no-configuration-cache
+```
+
+В `gradle.properties` подготовлен пин `taranAar=4.2.0`. Сначала нужно опубликовать этот релиз ядра; до этого используйте локальный режим. Прежний AAR `4.1.0` с этим исходным кодом приложения несовместим.
+
 ## Благодарности
 
+- **[@hackdiaz-dev](https://github.com/hackdiaz-dev)** — за развитие [FreeTurn Android](https://github.com/hackdiaz-dev/turn-proxy-android), на основе которого развивается Taran Android.
 - **[@Moroka8](https://github.com/Moroka8)** - форк ядра [vk-turn-proxy](https://github.com/Moroka8/vk-turn-proxy)
 - **[@alexmac6574](https://github.com/alexmac6574)** - форк ядра [vk-turn-proxy](https://github.com/alexmac6574/vk-turn-proxy)
 - **[@cacggghp](https://github.com/cacggghp)** - оригинальное [vk-turn-proxy](https://github.com/cacggghp/vk-turn-proxy)
-- **[@MYSOREZ](https://github.com/MYSOREZ)** - оригинальный Android-клиент [vk-taran-android](https://github.com/MYSOREZ/vk-taran-android)
+- **[@MYSOREZ](https://github.com/MYSOREZ)** - оригинальный Android-клиент [vk-turn-proxy-android](https://github.com/MYSOREZ/vk-turn-proxy-android)

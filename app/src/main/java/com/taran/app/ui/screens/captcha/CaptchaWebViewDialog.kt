@@ -6,7 +6,11 @@
 package com.taran.app.ui.screens.captcha
 
 import android.annotation.SuppressLint
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.Box
@@ -32,22 +36,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.core.net.toUri
 import com.taran.app.R
 import com.taran.app.ui.components.BusyProgressIndicator
+import java.net.URI
+import java.util.Locale
 
 /** Только локальный captcha-прокси ядра допускается к загрузке в WebView. */
-private fun isLocalCaptchaUrl(url: String): Boolean {
-    val uri = url.toUri()
-    val host = uri.host ?: return false
-    return uri.scheme?.lowercase() == "http" && (host == "127.0.0.1" || host == "localhost")
-}
+internal fun isLocalCaptchaUrl(url: String): Boolean = runCatching {
+    val uri = URI(url)
+    val host = uri.host?.lowercase(Locale.ROOT)
+    uri.scheme?.lowercase(Locale.ROOT) == "http" &&
+        uri.rawUserInfo == null &&
+        uri.port == 8765 &&
+        (host == "127.0.0.1" || host == "localhost")
+}.getOrDefault(false)
 
 /**
  * Ручная капча провайдера во встроенном WebView. Грузит локальный прокси ядра
  * (127.0.0.1:8765), который переписывает страницы провайдера так, чтобы весь трафик шёл
  * через loopback. Диалог закрывается, когда ядро отрапортует о решении капчи
- * (onCaptcha("") -> ProxyStore.setCaptcha("") -> пустой captchaUrl в status).
+ * (onCaptcha("", false) -> ProxyStore.setCaptcha("", false) -> пустой captchaUrl в status).
  */
 @Composable
 fun CaptchaWebViewDialog(
@@ -108,6 +116,58 @@ fun CaptchaWebViewDialog(
     }
 }
 
+/** Service-owned WebView, created only for an automatic challenge and destroyed afterwards. */
+object AutomaticCaptchaWebViewHostController {
+    private val main = Handler(Looper.getMainLooper())
+    private var webView: WebView? = null
+    private var loadedChallengeId = Long.MIN_VALUE
+
+    fun show(context: android.content.Context, url: String, challengeId: Long) {
+        val safeUrl = url.takeIf(::isLocalCaptchaUrl).orEmpty()
+        main.post {
+            if (safeUrl.isBlank()) return@post
+            if (loadedChallengeId == challengeId) return@post
+            destroyWebView()
+            loadedChallengeId = challengeId
+            clearCaptchaCookies {
+                if (loadedChallengeId == challengeId) {
+                    webView = createCaptchaWebView(context.applicationContext).also { view ->
+                        view.onResume()
+                        view.loadUrl(safeUrl)
+                    }
+                }
+            }
+        }
+    }
+
+    fun clear() {
+        main.post {
+            loadedChallengeId = Long.MIN_VALUE
+            destroyWebView()
+            clearCaptchaCookies()
+        }
+    }
+
+    private fun destroyWebView() {
+        webView?.apply {
+            stopLoading()
+            loadUrl("about:blank")
+            onPause()
+            destroy()
+        }
+        webView = null
+    }
+
+    private fun clearCaptchaCookies(onCleared: () -> Unit = {}) {
+        // The app has no other WebView-backed feature; its WebView cookie jar is used
+        // only by the local CAPTCHA proxy. Clear it after the challenge lifecycle ends.
+        CookieManager.getInstance().removeAllCookies {
+            CookieManager.getInstance().flush()
+            onCleared()
+        }
+    }
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 private fun CaptchaWebView(url: String) {
@@ -118,16 +178,7 @@ private fun CaptchaWebView(url: String) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
-                WebView(context).apply {
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.userAgentString = settings.userAgentString.replace("; wv)", ")")
-                    webViewClient = object : WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: WebView,
-                            request: android.webkit.WebResourceRequest
-                        ): Boolean = !isLocalCaptchaUrl(request.url.toString())
-                    }
+                createCaptchaWebView(context).apply {
                     webChromeClient = object : WebChromeClient() {
                         override fun onProgressChanged(view: WebView, newProgress: Int) {
                             progress = newProgress / 100f
@@ -136,7 +187,11 @@ private fun CaptchaWebView(url: String) {
                     loadUrl(url)
                 }
             },
-            onRelease = { it.destroy() }
+            onRelease = {
+                it.stopLoading()
+                it.destroy()
+                CookieManager.getInstance().removeAllCookies { CookieManager.getInstance().flush() }
+            }
         )
         if (progress < 1f) {
             BusyProgressIndicator(
@@ -144,5 +199,25 @@ private fun CaptchaWebView(url: String) {
                 modifier = Modifier.align(Alignment.TopCenter)
             )
         }
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+private fun createCaptchaWebView(context: android.content.Context) = WebView(context).apply {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        // Keep the renderer bound to this app while the VPN foreground service is active,
+        // even though the hidden CAPTCHA view is not on screen.
+        setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, false)
+    }
+    settings.javaScriptEnabled = true
+    settings.domStorageEnabled = true
+    settings.allowContentAccess = false
+    settings.allowFileAccess = false
+    settings.userAgentString = settings.userAgentString.replace("; wv)", ")")
+    webViewClient = object : WebViewClient() {
+        override fun shouldOverrideUrlLoading(
+            view: WebView,
+            request: android.webkit.WebResourceRequest
+        ): Boolean = !isLocalCaptchaUrl(request.url.toString())
     }
 }

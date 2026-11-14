@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.2.0](https://github.com/buldozerchik/taran-android/compare/v5.1.1...v5.2.0) (2026-11-14)
+
+
+### Features
+
+* sync upstream Android 5.3.4 features ([#5](https://github.com/buldozerchik/taran-android/issues/5)) ([a9789cb](https://github.com/buldozerchik/taran-android/commit/a9789cbe325f4c3a488876c1d2a4b4faa985accb))
+
 ## [5.1.1](https://github.com/buldozerchik/taran-android/compare/v5.1.0...v5.1.1) (2026-10-24)
 
 

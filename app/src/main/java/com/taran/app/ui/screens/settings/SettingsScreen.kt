@@ -20,6 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import com.taran.app.service.ExternalControl
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -116,6 +120,8 @@ fun AdvancedScreen(
     onBack: () -> Unit
 ) {
     val nerdMode by settingsViewModel.nerdMode.collectAsStateWithLifecycle()
+    val advancedCaptcha by settingsViewModel.advancedCaptcha.collectAsStateWithLifecycle()
+    val manualCaptcha by settingsViewModel.manualCaptcha.collectAsStateWithLifecycle()
     val restartServerOnSwitch by settingsViewModel.restartServerOnSwitch.collectAsStateWithLifecycle()
     val hotspotProxyEnabled by settingsViewModel.hotspotProxyEnabled.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -147,6 +153,20 @@ fun AdvancedScreen(
             ) {
                 SettingsCard {
                     SettingsSwitchRow(
+                        title = stringResource(R.string.advanced_captcha),
+                        subtitle = stringResource(
+                            if (manualCaptcha) R.string.advanced_captcha_disabled_manual_desc
+                            else R.string.advanced_captcha_desc
+                        ),
+                        iconRes = R.drawable.captcha_24px,
+                        checked = advancedCaptcha && !manualCaptcha,
+                        enabled = !manualCaptcha,
+                        onCheckedChange = settingsViewModel::setAdvancedCaptcha
+                    )
+                }
+
+                SettingsCard {
+                    SettingsSwitchRow(
                         title = stringResource(R.string.nerd_mode),
                         subtitle = stringResource(R.string.nerd_mode_desc),
                         iconRes = R.drawable.terminal_24px,
@@ -164,6 +184,9 @@ fun AdvancedScreen(
                         onCheckedChange = { settingsViewModel.setHotspotProxyEnabled(it) }
                     )
                 }
+                if (hotspotProxyEnabled) {
+                    HotspotOptionsCard(settingsViewModel)
+                }
 
                 SettingsCard {
                     SettingsSwitchRow(
@@ -172,6 +195,20 @@ fun AdvancedScreen(
                         iconRes = R.drawable.restart_alt_24px,
                         checked = restartServerOnSwitch,
                         onCheckedChange = { settingsViewModel.setRestartServerOnSwitch(it) }
+                    )
+                }
+                SettingsCard {
+                    val context = LocalContext.current
+                    val externalControl = remember { mutableStateOf(ExternalControl.isEnabled(context)) }
+                    SettingsSwitchRow(
+                        title = stringResource(R.string.external_control),
+                        subtitle = stringResource(R.string.external_control_desc),
+                        iconRes = R.drawable.bolt_24px,
+                        checked = externalControl.value,
+                        onCheckedChange = {
+                            ExternalControl.setEnabled(context, it)
+                            externalControl.value = it
+                        }
                     )
                 }
             }

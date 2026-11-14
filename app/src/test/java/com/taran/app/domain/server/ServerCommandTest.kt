@@ -15,6 +15,14 @@ import org.junit.Test
 class ServerCommandTest {
 
     @Test
+    fun `Taran default port agrees with installer and preserves explicit ports`() {
+        assertEquals("0.0.0.0:53530", Server(name = "default").proxyListen)
+        assertEquals(53530, Server(name = "default").applyOptions().listenPort)
+        assertEquals(53530, Server(name = "fallback", proxyListen = "invalid").applyOptions().listenPort)
+        assertEquals(56000, Server(name = "existing", proxyListen = "0.0.0.0:56000").applyOptions().listenPort)
+    }
+
+    @Test
     fun `apply new backend sends wg and omits connect`() {
         val argv = ServerCommand.Apply(
             ApplyOptions(

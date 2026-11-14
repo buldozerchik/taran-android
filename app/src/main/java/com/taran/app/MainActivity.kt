@@ -1,5 +1,9 @@
 package com.taran.app
 
+import com.taran.app.data.config.ThemeMode
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.SystemBarStyle
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
@@ -48,8 +52,36 @@ class MainActivity : ComponentActivity() {
         HapticUtil.perform(this, HapticUtil.Pattern.LAUNCH)
         enableEdgeToEdge()
         setContent {
-            val dynamicTheme by settingsViewModel.dynamicTheme.collectAsStateWithLifecycle()
-            taranTheme(dynamicColor = dynamicTheme) {
+            val dynamicTheme by settingsViewModel.dynamicTheme
+                .collectAsStateWithLifecycle()
+            val themeMode by settingsViewModel.themeMode
+                .collectAsStateWithLifecycle()
+            val amoled by settingsViewModel.amoled
+                .collectAsStateWithLifecycle()
+            val systemDark = isSystemInDarkTheme()
+            val dark = when (themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                else -> systemDark
+            }
+            DisposableEffect(dark) {
+                enableEdgeToEdge(
+                    statusBarStyle = SystemBarStyle.auto(
+                        android.graphics.Color.TRANSPARENT,
+                        android.graphics.Color.TRANSPARENT
+                    ) { dark },
+                    navigationBarStyle = SystemBarStyle.auto(
+                        LightScrim,
+                        DarkScrim
+                    ) { dark }
+                )
+                onDispose {}
+            }
+            taranTheme(
+                darkTheme = dark,
+                dynamicColor = dynamicTheme,
+                amoled = amoled
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.surface
@@ -67,7 +99,7 @@ class MainActivity : ComponentActivity() {
         proxyViewModel.onForeground(vpnConsent = { VpnService.prepare(this) == null })
     }
 
-    // singleTask: taran://-ссылка при живой задаче приходит сюда, не в onCreate.
+    // singleTask: freeturn://-ссылка при живой задаче приходит сюда, не в onCreate.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         // Иначе getIntent() после recreation вернёт исходный интент запуска.
@@ -80,3 +112,8 @@ class MainActivity : ComponentActivity() {
         intent.data?.toString()?.let(linkImportBus::offer)
     }
 }
+
+private val LightScrim =
+    android.graphics.Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
+private val DarkScrim =
+    android.graphics.Color.argb(0x80, 0x1B, 0x1B, 0x1B)

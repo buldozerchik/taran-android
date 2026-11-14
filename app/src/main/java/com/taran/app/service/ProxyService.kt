@@ -17,6 +17,7 @@ import com.taran.app.R
 import com.taran.app.data.AppPreferences
 import com.taran.app.data.CoreCommand
 import com.taran.app.data.config.ClientConfig
+import com.taran.app.data.config.Socks5Config
 import com.taran.app.data.config.Provider
 import com.taran.app.data.config.coreDnsServers
 import com.taran.app.data.config.toCoreJson
@@ -28,8 +29,12 @@ import com.taran.app.domain.proxy.ProxyStore
 import com.taran.app.domain.proxy.SocketProtector
 import com.taran.app.domain.proxy.Socks5Server
 import com.taran.app.domain.proxy.TunHandle
+import com.taran.app.ui.screens.captcha.AutomaticCaptchaWebViewHostController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -118,6 +123,7 @@ class ProxyService : VpnService() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         scope.launch { observeStatus() }
+        scope.launch { observeTraffic() }
         scope.launch { observeCoreErrors() }
     }
 
@@ -192,7 +198,7 @@ class ProxyService : VpnService() {
     private suspend fun startSession(session: Long, fresh: Boolean) {
         // Один снимок профиля: раздельные чтения смешали бы peer одного сервера с obf другого.
         val server = prefs.activeServerFlow.first()
-        val cfg = server?.client ?: ClientConfig()
+        val cfg = prefs.effectiveClient(server)
         val opts = server?.opts ?: ServerOpts()
         if (!isCurrent(session)) return
         // Лог рестарта не чистим: строка "Процесс запущен" от App - единственный след того,
@@ -256,7 +262,7 @@ class ProxyService : VpnService() {
             return
         }
         log.add("Сессия $session: запуск принят ядром")
-        if (hotspot) startHotspot(session)
+        if (hotspot) startHotspot(session, prefs.hotspotConfig())
     }
 
     /**
@@ -264,12 +270,17 @@ class ProxyService : VpnService() {
      * заявку, а пока оно поднималось, её могли отменить.
      */
     @Synchronized
-    private fun startHotspot(session: Long) {
+    private fun startHotspot(session: Long, cfg: Socks5Config) {
         if (!isCurrent(session)) return
         // Порт занимает ровно один сервер: потерянный тут экземпляр держал бы 1080 до
         // смерти процесса.
         socks5?.stop()
-        socks5 = Socks5Server(protect = { socket -> protect(socket) }, log = log).also { it.start() }
+        socks5 = Socks5Server(
+            protect = { socket -> protect(socket) },
+            log = log,
+            config = cfg,
+            protectUdp = { socket -> protect(socket) },
+        ).also { it.start() }
     }
 
     /** Исход попытки поднять tun. Судьбу сессии решает вызывающий, а не сама попытка. */
@@ -319,6 +330,7 @@ class ProxyService : VpnService() {
         srv = opts,
         carrierDns = if (cfg.useCarrierDns) network.physicalDnsServers() else null,
         ownClientId = prefs.ownClientId(),
+        advancedCaptchaEnabled = prefs.advancedCaptchaFlow.first(),
     )
 
     private fun onNetworkHandover() {
@@ -336,6 +348,16 @@ class ProxyService : VpnService() {
         withCoreDns { session, dns -> engine.setDnsServers(session, dns) }
     }
 
+    // No polling while the screen is off.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun observeTraffic() {
+        applicationContext.screenOnFlow()
+            .flatMapLatest { on ->
+                if (on) engine.traffic.stats(store.status) else emptyFlow()
+            }
+            .collect { notifier.updateTraffic(it) }
+    }
+
     private fun withCoreDns(apply: (session: Long, dns: String) -> Unit) {
         val session = this.session
         scope.launch {
@@ -345,11 +367,21 @@ class ProxyService : VpnService() {
         }
     }
 
+    /** Автоматический WebView очищаем на переходе, а не при каждом обновлении статуса. */
+    private var autoCaptchaActive = false
+
     /** Нотификация ведётся тем же состоянием, что видит UI. */
     private suspend fun observeStatus() {
         store.status.collect { status ->
-            // После решения об остановке молчим: нотификация уже снята.
+            // Остановленная сессия не должна заново создавать WebView по запоздавшему статусу.
             if (stopping.get()) return@collect
+            if (status.captchaUrl.isNotBlank() && !status.captchaManual) {
+                AutomaticCaptchaWebViewHostController.show(this@ProxyService, status.captchaUrl, status.captchaId)
+                autoCaptchaActive = true
+            } else if (autoCaptchaActive) {
+                autoCaptchaActive = false
+                AutomaticCaptchaWebViewHostController.clear()
+            }
             notifier.update(status, tunnelMode, provider)
         }
     }
@@ -450,6 +482,8 @@ class ProxyService : VpnService() {
     private fun teardown(reason: String) {
         val session = this.session
         notifier.cancelCaptcha()
+        autoCaptchaActive = false
+        AutomaticCaptchaWebViewHostController.clear()
         // Причина обязательна: по логу после гибернации надо отличать команду пользователя
         // от ошибки ядра и от отзыва VPN системой.
         log.add("Сессия $session: остановка ($reason)")

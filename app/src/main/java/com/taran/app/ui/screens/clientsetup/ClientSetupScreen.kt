@@ -109,7 +109,7 @@ fun ClientSetupScreen(
     // Автозаполнение адреса сервера из SSH-конфига если поле пустое
     LaunchedEffect(effSshIp, effProxyListen) {
         if (serverAddress.isBlank() && effSshIp.isNotBlank()) {
-            val port = effProxyListen.substringAfterLast(":", "56000")
+            val port = effProxyListen.substringAfterLast(":", "53530")
             serverAddress = "$effSshIp:$port"
             fieldsDirty = true
         }
@@ -223,7 +223,10 @@ fun ClientSetupScreen(
                         useUdp = saved.useUdp,
                         onUseUdp = { v -> clientEdit { it.copy(useUdp = v) } },
                         manualCaptcha = saved.manualCaptcha,
-                        onManualCaptcha = { v -> clientEdit { it.copy(manualCaptcha = v) } },
+                        onManualCaptcha = { v ->
+                            clientEdit { it.copy(manualCaptcha = v) }
+                            if (v) settingsViewModel.setAdvancedCaptcha(false)
+                        },
                         magicSwitch = saved.magicSwitch,
                         onMagicSwitch = { v -> clientEdit { it.copy(magicSwitch = v) } },
                         magicTurn = magicTurn,

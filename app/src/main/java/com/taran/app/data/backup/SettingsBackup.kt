@@ -1,6 +1,7 @@
 package com.taran.app.data.backup
 
 import com.taran.app.data.config.ClientId
+import com.taran.app.data.config.ThemeMode
 import com.taran.app.data.server.Server
 import com.taran.app.data.server.ServerJson
 import org.json.JSONArray
@@ -21,7 +22,12 @@ data class BackupData(
     val autoConnect: Boolean,
     val hotspotProxy: Boolean,
     val suppressUpdatePrompt: Boolean,
-    val suppressTgPrompt: Boolean
+    val suppressTgPrompt: Boolean,
+    val advancedCaptcha: Boolean = false,
+    val splitSharedMode: String? = null,
+    val splitSharedApps: String = "",
+    val themeMode: String = ThemeMode.SYSTEM,
+    val amoled: Boolean = false
 )
 
 /** Сериализация [BackupData] в JSON (серверы - через тот же [ServerJson], что и в DataStore). */
@@ -42,6 +48,13 @@ object SettingsBackup {
         put("hotspotProxy", data.hotspotProxy)
         put("suppressUpdatePrompt", data.suppressUpdatePrompt)
         put("suppressTgPrompt", data.suppressTgPrompt)
+        put("advancedCaptcha", data.advancedCaptcha)
+        put("themeMode", data.themeMode)
+        put("amoled", data.amoled)
+        data.splitSharedMode?.let {
+            put("splitSharedMode", it)
+            put("splitSharedApps", data.splitSharedApps)
+        }
     }.toString()
 
     fun decode(json: String): BackupData {
@@ -70,7 +83,12 @@ object SettingsBackup {
             autoConnect = o.optBoolean("autoConnect", false),
             hotspotProxy = o.optBoolean("hotspotProxy", false),
             suppressUpdatePrompt = o.optBoolean("suppressUpdatePrompt", false),
-            suppressTgPrompt = o.optBoolean("suppressTgPrompt", false)
+            suppressTgPrompt = o.optBoolean("suppressTgPrompt", false),
+            advancedCaptcha = o.optBoolean("advancedCaptcha", false),
+            splitSharedMode = o.optString("splitSharedMode").takeIf { it.isNotBlank() },
+            splitSharedApps = o.optString("splitSharedApps"),
+            themeMode = ThemeMode.normalize(o.optString("themeMode")),
+            amoled = o.optBoolean("amoled", false)
         )
     }
 }

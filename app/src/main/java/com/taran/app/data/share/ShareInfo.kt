@@ -10,7 +10,7 @@ data class ShareInfo(
     /** Пусто - серверной правды нет (ручной профиль без SSH); иначе хотя бы "none". */
     val obfProfile: String = "",
     val obfKey: String = "",
-    /** Свой WG ft-wg0 -> в ссылке WG-конфиг гостя. Иначе - только taran-часть. */
+    /** Свой WG tr-wg0 -> в ссылке WG-конфиг гостя. Иначе - только taran-часть. */
     val wgBackend: Boolean = false
 ) {
     val hasRunArgs: Boolean get() = obfProfile.isNotEmpty()

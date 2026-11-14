@@ -4,6 +4,7 @@ import com.taran.app.data.AppPreferences
 import com.taran.app.domain.backup.BackupManager
 import com.taran.app.domain.update.AppUpdater
 import com.taran.app.domain.share.LinkImportBus
+import com.taran.app.domain.proxy.PingMeter
 import com.taran.app.domain.proxy.ProxyEngine
 import com.taran.app.domain.proxy.ProxyLog
 import com.taran.app.domain.proxy.ProxyOrchestrator
@@ -32,6 +33,7 @@ import java.io.File
 val appModule = module {
     single { AppPreferences(androidContext()) }
     single { ProxyStore() }
+    single { PingMeter(androidContext()) }
     single { ProxyLog(File(androidContext().filesDir, "logs")) }
     single<ProxyServiceLauncher> { AndroidProxyServiceLauncher(androidContext(), get(), get()) }
     // Ядро одно на процесс: сессия переживает пересоздание сервиса.
